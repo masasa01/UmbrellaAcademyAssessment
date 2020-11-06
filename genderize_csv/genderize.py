@@ -65,12 +65,20 @@ def genderize(args):
     with open(ifile, 'r', encoding="utf8") as csvfile:
         readCSV = csv.reader(csvfile, delimiter=',', skipinitialspace=True)
         first_name = []
+        inputData = []
 
         for row in readCSV: #Read CSV into first_name list
             if len(row) > 1:
-                first_name.append(row[1].strip())
+                row[1] = row[1].strip()
+                first_name.append(row[1])
             else:
-                first_name.append(row[0].strip())
+                row[0] = row[0].strip()
+                first_name.append(row[0])
+            inputData.append(row)
+
+        headers = inputData[0]
+        inputData = inputData[1:]
+        data_iterator = iter(inputData)
 
         if args.noheader == False:
             first_name.pop(0) #Remove header
@@ -81,7 +89,7 @@ def genderize(args):
                 o_first_name.append(b)
         
         if args.auto == True:
-            uniq_first_name = list(set(o_first_name))
+            uniq_first_name = list(set(first_name))
             chunks = list(jpyh.splitlist(uniq_first_name, 10));
             print("--- Read CSV with " + str(len(first_name)) + " first_name. " + str(len(uniq_first_name)) + " unique.")
         else:
@@ -89,7 +97,7 @@ def genderize(args):
             print("--- Read CSV with " + str(len(first_name)) + " first_name")
 
         print("--- Processed into " + str(len(chunks)) + " chunks")
-
+        
         if jpyh.query_yes_no("\n---! Ready to send to Genderdize. Proceed?") == False:
             print("Exiting...\n")
             sys.exit()
@@ -103,13 +111,27 @@ def genderize(args):
         if args.auto == True:
             ofile = ofile + ".tmp"
 
+        if "gender" not in headers:
+            headers.append("gender")
+            gender_index = headers.index("gender")
+        if "probability" not in headers:
+            headers.append("probability")
+            prob_index = headers.index("probability")
+        if "count" not in headers:
+            headers.append("count")
+            count_index = headers.index("count")
+
         response_time = [];
         gender_responses = list()
         with open(ofile, 'w', newline='', encoding="utf8") as f:
             writer = csv.writer(f)
-            writer.writerow(list(["first_name", "gender", "probability", "count"]))
+            #writer.writerow(list(["first_name", "gender", "probability", "count"]))
             chunks_len = len(chunks)
             stopped = False
+
+            #print(inputData)
+            
+            writer.writerow(headers)
             
             for index, chunk in enumerate(chunks):
                 if stopped:
@@ -146,8 +168,16 @@ def genderize(args):
                     print("Processed chunk " + str(index + 1) + " of " + str(chunks_len) + " -- Time remaining (est.): " + \
                         str( round( (sum(response_time) / len(response_time) * (chunks_len - index - 1)), 3)) + "s")
 
+                    #print(dataset)
+                    
                     for data in dataset:
-                        writer.writerow(data.values())
+                        next_row = next(data_iterator)
+                        next_row_index = inputData.index(next_row)
+                        entry_row = inputData[next_row_index]
+
+                        entry = [data["gender"], data["probability"], data["count"]]
+                        entry_row += entry
+                        writer.writerow(entry_row)
                     break
 
             if args.auto == True:
@@ -159,33 +189,44 @@ def genderize(args):
                 for response in gender_responses:
                     for d in response:
                         gender_dict[d.get("name")] = [d.get("gender"), d.get("probability"), d.get("count")]
+                
+                #names seen
+                seen_names = []
 
                 with open(ofilename + "_auto" + ofile_extension, 'w', newline='', encoding="utf8") as f:
                     writer = csv.writer(f)
-                    writer.writerow(list(["first_name", "gender", "probability", "count"]))
-
-                    for name in o_first_name:
-                        data = gender_dict.get(name)
-                        writer.writerow([name, data[0], data[1], data[2]])
+                    writer.writerow(headers)
+                    
+                    for row in inputData:
+                        if len(row) > 4:
+                            name = row[1]
+                            if name not in seen_names:
+                                writer.writerow(row)
+                            seen_names.append(name)
+                        else:
+                            name = row[0]
+                            if name not in seen_names:
+                                writer.writerow(row)
+                            seen_names.append(name)
             
             if args.override == True:
                 print("\nExercising override \n")
 
                 with open(ofilename + "_override" + ofile_extension, 'w', newline='', encoding="utf8") as f:
                     writer = csv.writer(f)
-                    writer.writerow(list(["first_name", "female", "male"]))
 
-                    gender_dict = dict()
-                    for response in gender_responses:
-                        for d in response:
-                            gender_dict[d.get("name")] = [d.get("gender"), d.get("probability"), d.get("count")]
+                    #add headers
+                    headers += ["female", "male"]
+                    writer.writerow(headers)
 
-                    for name in gender_dict:
-                        gender = gender_dict[name][0]
+                    for row in inputData:
+                        gender = row[gender_index]
                         if gender == "male":
-                            writer.writerow([name, 0, 1])
+                            row += [0, 1]
+                            writer.writerow(row)
                         else:
-                            writer.writerow([name, 1, 0])
+                            row += [1, 0]
+                            writer.writerow(row)
 
             master_dict = dict()
             for response in gender_responses:

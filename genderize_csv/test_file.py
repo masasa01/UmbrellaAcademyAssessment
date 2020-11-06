@@ -9,7 +9,17 @@ if __name__ == "__main__":
     aFile = "test\genderize_test_file.csv"
     dir_path = os.path.dirname(os.path.realpath(aFile))
     checkPath = os.path.exists(os.path.dirname(dir_path))
-
+    
+    someList = [1,2,3,4,5,1,2,3]
+    anotherList = []
+    someList_iter = iter(someList)
+    
+    for num in someList:
+        if num not in anotherList:
+            print(num,anotherList)
+        anotherList.append(num)
+    
+    '''
     with open(aFile, 'r', encoding="utf8") as infile, open("output.csv", 'w') as outfile:
         writer = csv.writer(outfile, lineterminator="\n")
         reader = csv.reader(infile, delimiter=',', skipinitialspace=True)
@@ -26,7 +36,7 @@ if __name__ == "__main__":
 
         writer.writerows(data)
 
-    '''
+    
     with open(aFile, 'r', encoding="utf8") as csvfile:
         readCSV = csv.reader(csvfile, delimiter=',', skipinitialspace=True)
         first_name = []
